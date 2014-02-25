@@ -3,14 +3,18 @@ var characters = [
   "Han Solo", "Obi-Wan Kenibo", "Bothan Spy", "Admiral Ackbar", "Ewok",
   "Emperor", "Darth Vader", "Prode Droid", "Rancor", "Bounty Hunter", "Stormtrooper", "EV-9D9", "Imperial Guard",
 ];
+var allowMultiple = {"Ewok": true};
 var included = {};
 var originalCharacterCount = characters.length;
 loadState();
 
 var resultDiv = document.getElementById("resultDiv");
 document.getElementById("shuffleButton").addEventListener("click", function() {
-  var includedCharacters = characters.filter(function(character) {
-    return included[character];
+  var includedCharacters = [];
+  characters.forEach(function(character) {
+    for (var i = 0; i < (included[character] || 0); i++) {
+      includedCharacters.push(character);
+    }
   });
   shuffle(includedCharacters);
   resultDiv.innerHTML = '' +
@@ -45,7 +49,10 @@ function generateSourceList() {
     characters.map(function(character, i) {
       return '<li>' +
         '<label>' +
-          '<input type="checkbox" id="character_'+i+'"'+(included[character]?' checked="true"':'')+'>' +
+          (allowMultiple[character]
+            ? '<input type="number" id="character_'+i+'" value="'+(included[character] || 0)+'" min="0" max="99" style="width: 40px;">'
+            : '<input type="checkbox" id="character_'+i+'"'+(included[character]?' checked="true"':'')+'>'
+          ) +
           sanitizeHtml(character) +
         '</label>' +
         (i >= originalCharacterCount ? '<button id="remove_character_'+i+'">x</button>' : '') +
@@ -55,18 +62,29 @@ function generateSourceList() {
       '<button id="unselectAllButton">Unselect All</button>' +
     '</li>';
   characters.forEach(function(character, i) {
-    var checkbox = document.getElementById("character_" + i);
-    checkbox.addEventListener("click", function() {
-      // wait for the value to change
-      setTimeout(function() {
-        included[character] = checkbox.checked;
-        saveState();
-      }, 0);
-    });
+    var inputWidget = document.getElementById("character_" + i);
+    if (allowMultiple[character]) {
+      inputWidget.addEventListener("change", function() {
+        // wait for the value to change
+        setTimeout(function() {
+          included[character] = parseInt(inputWidget.value);
+          saveState();
+        }, 0);
+      });
+    } else {
+      inputWidget.addEventListener("click", function() {
+        // wait for the value to change
+        setTimeout(function() {
+          included[character] = inputWidget.checked ? 1 : 0;
+          saveState();
+        }, 0);
+      });
+    }
     if (i >= originalCharacterCount) {
       document.getElementById("remove_character_" + i).addEventListener("click", function() {
         characters.splice(i, 1);
         delete included[character];
+        delete allowMultiple[character];
         generateSourceList();
       });
     }
@@ -79,6 +97,7 @@ function generateSourceList() {
 }
 
 var newCharacterTextbox = document.getElementById("newCharacterTextbox");
+var newCharacterAllowMultipleCheckbox = document.getElementById("newCharacterAllowMultipleCheckbox");
 newCharacterTextbox.addEventListener("keydown", function(event) {
   if (event.keyCode === 13) {
     // Enter
@@ -91,11 +110,15 @@ newCharacterTextbox.addEventListener("keydown", function(event) {
 });
 document.getElementById("addCharacterButton").addEventListener("click", addNewCharacter);
 function addNewCharacter() {
-  var text = newCharacterTextbox.value.trim();
-  if (text !== "" && characters.indexOf(text) === -1) {
-    characters.push(text);
+  var character = newCharacterTextbox.value.trim();
+  if (character !== "" && characters.indexOf(character) === -1) {
+    characters.push(character);
+    if (newCharacterAllowMultipleCheckbox.checked) {
+      allowMultiple[character] = true;
+    }
     generateSourceList();
     newCharacterTextbox.value = "";
+    newCharacterAllowMultipleCheckbox.checked = false;
   }
   newCharacterTextbox.focus();
 }
@@ -104,6 +127,7 @@ function saveState() {
   localStorage.mafiaCharacters = JSON.stringify({
     characters: characters,
     included: included,
+    allowMultiple: allowMultiple,
   });
 }
 function loadState() {
@@ -112,4 +136,5 @@ function loadState() {
   var state = JSON.parse(stateJson);
   characters = state.characters;
   included = state.included;
+  allowMultiple = state.allowMultiple;
 }
